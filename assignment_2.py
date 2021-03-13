@@ -13,7 +13,14 @@ def poly_basis(X, degree):
     :param degree: degree of the polynomial of the basis function
     :return: the data after the basis function is applied
     '''
-    return X
+    polyBasis = X
+    for i in range(degree):
+        if i<=1:
+            continue
+        else:
+            Xraised = X**i
+            polyBasis = np.concatenate((polyBasis, Xraised), 1)
+    return polyBasis
 
 
 #TODONE - implement a function to add a bias as the first dimension of the data/////////ho much bias?
@@ -44,8 +51,7 @@ def train_regression_analytical(X, Y, penalty=0, regularization='none'):
     XT = np.transpose(X)  #X transpose
     XTX = np.dot(XT,X)
     if regularization == 'l2':
-        print("L2 not properly implemented haha UNLESS_________________________-------------------++++++++++++++++______________________00000000000000000000000")
-        I = np.eye(len(X)) 
+        I = np.eye(len(XTX)) 
         lambdaI = penalty*I
         XTX = XTX + lambdaI
 
@@ -54,7 +60,7 @@ def train_regression_analytical(X, Y, penalty=0, regularization='none'):
     return theta
 
 
-#TODO - implement gradient descent (basic)
+#TODONE - implement gradient descent (basic)
 #TODO - implement gradient descent for logistic regression log_on=True
 #TODO - implement gradient descent with L1 and L2 regularization
 def train_gradient_descent(X, Y, max_epoch, learning_rate, log_on=False, penalty=0, regularization='none'):
@@ -69,12 +75,33 @@ def train_gradient_descent(X, Y, max_epoch, learning_rate, log_on=False, penalty
     :param regularization: the regularization type (either 'none', 'l1', or 'l2')
     :return: theta - the model weights
     '''
-    theta = np.zeros((len(X[0]),1))#initialize Theta
-    print(theta)
-    for i in range(max_epoch):
-        predictions = np.dot(X,theta)
+    loss_function = "MSE"
 
-    pass
+    theta_analytical = train_regression_analytical(X, Y)
+    loss_analytical = calculate_loss(X, Y, theta_analytical, loss_function)
+    min_loss = loss_analytical +.001
+
+    theta = np.ones((len(X[0]),1))#initialize Theta
+    epoch = 0
+    while epoch < max_epoch and calculate_loss(X, Y, theta, loss_function) > min_loss: #loop
+        predictions = predict(theta , X, log_on)
+        loss = predictions - Y
+        lossX = np.dot(np.transpose(loss), X)
+        learned_lossX = learning_rate*lossX
+        learned_lossX_T = np.transpose(learned_lossX)
+
+        if regularization == "l1":
+            learned_lossX_T = learned_lossX_T + penalty*np.sign(theta)
+        elif regularization == "l2":
+            learned_lossX_T = learned_lossX_T + penalty*theta
+
+        theta = theta - np.transpose(learned_lossX) #calc new theta
+        epoch += 1
+        # print(epoch)
+        # print(calculate_loss(X, Y, theta, loss_function))
+
+
+    return theta #done
 
 
 #TODONE - implement a function calculate the predicted values based on data and model weights.
@@ -113,7 +140,10 @@ def normalize(X, mean=None, stdev=None):
 
     Xnorm = (X - mean)/stdev
     
-    return (Xnorm,mean, stdev)
+    return (Xnorm, mean, stdev)
+
+def H_theta(X,theta):
+    return 1 / (1 + np.exp(-np.dot(X,theta)))
 
 
 #TODO - implement a function to calculate loss. The two loss functions (objective functions) are Normnalized Binary
@@ -133,30 +163,28 @@ def calculate_loss(X, Y, theta, loss_function, log_on=False, regularization_type
     :return: the loss
     '''
 
-    loss = 0
     predictions = predict(theta, X, log_on)
     if (loss_function == "BCE"):
-        ((Y - predictions)**2).mean()
-        pass
+        YT = np.transpose(Y)
+        H = H_theta(X,theta)
+        log_H_theta = np.log(H)
+        one_minus_Y_T = np.transpose((np.ones((len(Y[0]),1)) - Y))
+        log_1_H = np.log(np.ones((len(X),1)) - H)
+        YT_Log_H = np.dot(YT,log_H_theta)
+        minus_Y_T_log_H = np.dot(one_minus_Y_T, log_1_H)
+        return -(YT_Log_H + minus_Y_T_log_H)/len(X)
 
     elif (loss_function == "MSE"):
+        least_squares = (Y - predictions)**2
+        if regularization_type == "l1":
+            return least_squares + penalty* np.abs(theta)
+        elif regularization_type == "l2":
+            return least_squares + penalty*(np.dot(np.transpose(theta), theta))
+
         return ((Y - predictions)**2).mean()
     else:
         print("ERROR: unknown loss function: ", loss_function)
         return -1
-
-    # add the regularization component
-    if (regularization_type == 'l1'):
-        pass
-    elif (regularization_type == 'l2'):
-        pass
-    elif (regularization_type == 'none'):
-        pass  # do nothing
-    else:
-        print("ERROR: unknown regularizer")
-        exit()
-
-    return loss
 
 # Code provided, you don't need to modify
 def threshold_predictions(predicted_values, threshold):
@@ -218,8 +246,8 @@ def experiment_1():
     '''
 
     # degree of polynomial to fit
-    max_epoch = 50
-    learning_rate = 0.01
+    max_epoch = 300
+    learning_rate = 0.0001
     loss_function = "MSE"
 
     # create data
@@ -272,7 +300,7 @@ def experiment_2():
     4) Look at the "threshold_predictions" function what is it doing? Why is it needed for classification but not
        regression?
     '''
-    learning_rate = 0.01
+    learning_rate = 0.00001
     threshold = 0.5
     loss_function = "BCE"
 
@@ -354,7 +382,7 @@ def experiment_3():
     '''
 
     # degree of polynomial to fit
-    degree = 2  # degree of polynomial
+    degree = 4  # degree of polynomial
     loss_function = 'MSE'
 
     # create data
@@ -402,10 +430,10 @@ def experiment_4():
     '''
 
     # degree of polynomial to fit
-    degree = 1  # degree of polynomial
-    max_epoch = 50
-    learning_rate = 0.01
-    threshold = 0.5
+    degree = 5  # degree of polynomial
+    max_epoch = 10000
+    learning_rate = 0.0001
+    threshold = 0.60      #.221 5 deg poly
     log_on = True  # turn this off to turn off logistic functions
     loss_function = 'BCE'
 
@@ -456,9 +484,9 @@ def experiment_5():
     '''
 
     # Hyper parameters
-    degree = 1  # degree of polynomial
+    degree = 4  # degree of polynomial
     threshold = 0.5
-    max_epoch = 50
+    max_epoch = 30000
     learning_rate = 0.001
     log_on = True
     penalty = 0
@@ -466,7 +494,7 @@ def experiment_5():
     loss_function = 'BCE'
 
     # create data
-    data, labels = data_generator.generate_experiment_6_data()
+    data, labels = data_generator.generate_experiment_5_data()
 
     # set up X for regression
     X = poly_basis(data, degree)
@@ -529,10 +557,10 @@ def experiment_6():
     '''
 
     # Hyper parameters
-    degree = 15  # degree of polynomial
+    degree = 5  # degree of polynomial
     max_epoch = 5000
-    learning_rate = 0.01
-    penalty = 0.1
+    learning_rate = 0.001
+    penalty = .00001
     loss_function = 'MSE'
 
     # create data
@@ -591,9 +619,10 @@ def experiment_6():
 #                 Run the Script
 #############################################################
 if __name__ == '__main__':
-    experiment_1()
+    # experiment_1()
     # experiment_2()
     # experiment_3()
     # experiment_4()
     # experiment_5()
+    experiment_6()
     plt.show()
